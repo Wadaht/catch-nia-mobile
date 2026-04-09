@@ -4399,7 +4399,7 @@ html,body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;ov
     });
     // Direct touch handler — calls the override directly, no .click() indirection
     function startGame(e){
-      if(e){ e.preventDefault(); e.stopPropagation(); }
+      if(e){ try{e.preventDefault();}catch(_){} try{e.stopPropagation();}catch(_){} }
       // Call the requestPointerLock override (defined above) which dispatches pointerlockchange
       const c = document.querySelector('canvas#gameCanvas') || document.querySelector('canvas');
       if(c && c.requestPointerLock) c.requestPointerLock();
@@ -4412,6 +4412,35 @@ html,body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;ov
   }
   if(document.readyState==='complete') setupBlockerTap();
   else window.addEventListener('load',setupBlockerTap);
+
+  // ============ Bulletproof: tap ANYWHERE on screen to start ============
+  // The blocker is z:100 over the whole viewport, so taps should already
+  // hit it — but iOS occasionally routes touches to underlying elements
+  // (or the blocker hasn't rendered yet on the first frame). This document-
+  // level listener fires on the very first touchstart anywhere on screen
+  // and starts the game if the blocker is still visible. Once the game
+  // starts, the listener is removed so it doesn't interfere with gameplay.
+  function globalTapToStart(e){
+    const blocker = document.getElementById('blocker');
+    if(!blocker) return;
+    const visible = blocker.style.display !== 'none' &&
+                    getComputedStyle(blocker).display !== 'none';
+    if(!visible){
+      // Game has started — clean up
+      document.removeEventListener('touchstart', globalTapToStart, true);
+      document.removeEventListener('click',      globalTapToStart, true);
+      return;
+    }
+    // Blocker is up — any tap anywhere starts the game
+    try{e.preventDefault();}catch(_){}
+    try{e.stopPropagation();}catch(_){}
+    const c = document.querySelector('canvas#gameCanvas') || document.querySelector('canvas');
+    if(c && c.requestPointerLock) c.requestPointerLock();
+    else document.dispatchEvent(new Event('pointerlockchange'));
+  }
+  // Use capture phase so we run BEFORE any element-level handlers can swallow the touch
+  document.addEventListener('touchstart', globalTapToStart, {capture:true, passive:false});
+  document.addEventListener('click',      globalTapToStart, {capture:true});
 
   // ============ Resize fix for iOS landscape ============
   function fixSize(){

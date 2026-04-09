@@ -1,0 +1,119 @@
+name: Build unsigned IPA
+
+# Builds an unsigned .ipa on a macOS runner so you can sideload it via
+# Sideloadly / AltStore. Sideloadly will re-sign it with your Apple ID,
+# so we don't need any code-signing certificates here.
+#
+# Trigger:
+#   - Manually from the Actions tab ("Run workflow")
+#   - Automatically on every push to main
+#
+# Output:
+#   - The IPA appears as a downloadable artifact at the bottom of the
+#     workflow run page (CatchNia-unsigned.ipa).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Add iOS platform
+        run: npx cap add ios
+
+      - name: Patch Info.plist for landscape
+        run: |
+          PLIST="ios/App/App/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :UIRequiresFullScreen bool true" "$PLIST" || \
+            /usr/libexec/PlistBuddy -c "Set :UIRequiresFullScreen true" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UIStatusBarHidden bool true" "$PLIST" || \
+            /usr/libexec/PlistBuddy -c "Set :UIStatusBarHidden true" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UIViewControllerBasedStatusBarAppearance bool false" "$PLIST" || \
+            /usr/libexec/PlistBuddy -c "Set :UIViewControllerBasedStatusBarAppearance false" "$PLIST"
+          # Replace orientation arrays with landscape-only
+          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationLandscapeLeft" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:1 string UIInterfaceOrientationLandscapeRight" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:0 string UIInterfaceOrientationLandscapeLeft" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:1 string UIInterfaceOrientationLandscapeRight" "$PLIST"
+          echo "--- Patched Info.plist ---"
+          cat "$PLIST"
+
+      - name: Sync Capacitor
+        run: npx cap sync ios
+
+      - name: Install CocoaPods
+        run: |
+          cd ios/App
+          pod install --repo-update
+
+      - name: Build unsigned .app
+        run: |
+          cd ios/App
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            clean build
+
+      - name: Package as unsigned IPA
+        run: |
+          cd ios/App
+          APP_PATH="build/Build/Products/Release-iphoneos/App.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "App.app not found at $APP_PATH"
+            find build -name "*.app" -type d
+            exit 1
+          fi
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qr CatchNia-unsigned.ipa Payload
+          rm -rf Payload
+          ls -la CatchNia-unsigned.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CatchNia-unsigned-ipa
+          path: ios/App/CatchNia-unsigned.ipa
+          retention-days: 30
+
+      - name: Show download instructions
+        run: |
+          echo ""
+          echo "================================================"
+          echo "  Build complete!"
+          echo "================================================"
+          echo "  Download the artifact 'CatchNia-unsigned-ipa'"
+          echo "  from this workflow run page, then drag the"
+          echo "  .ipa into Sideloadly and sign with your"
+          echo "  Apple ID to install on your iPhone."
+          echo "================================================"

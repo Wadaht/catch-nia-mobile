@@ -1,0 +1,31 @@
+<!--
+  After running `npx cap add ios`, paste these keys into:
+    ios/App/App/Info.plist
+  inside the top-level <dict>.
+
+  This locks the app to LANDSCAPE only on iPhone and iPad,
+  hides the status bar in-game, and allows full-screen layout.
+-->
+
+<key>UIRequiresFullScreen</key>
+<true/>
+
+<key>UIStatusBarHidden</key>
+<true/>
+
+<key>UIViewControllerBasedStatusBarAppearance</key>
+<false/>
+
+<!-- iPhone: landscape only -->
+<key>UISupportedInterfaceOrientations</key>
+<array>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+</array>
+
+<!-- iPad: landscape only -->
+<key>UISupportedInterfaceOrientations~ipad</key>
+<array>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+</array>

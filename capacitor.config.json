@@ -1,0 +1,24 @@
+{
+  "appId": "com.catchnia.game",
+  "appName": "Catch Nia!",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": false,
+    "preferredContentMode": "mobile",
+    "limitsNavigationsToAppBoundDomains": false,
+    "allowsLinkPreview": false,
+    "backgroundColor": "#000000"
+  },
+  "server": {
+    "iosScheme": "catchnia"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1000,
+      "backgroundColor": "#000000",
+      "showSpinner": false
+    }
+  }
+}

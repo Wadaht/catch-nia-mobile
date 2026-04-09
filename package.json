@@ -1,0 +1,19 @@
+{
+  "name": "catch-nia-mobile",
+  "version": "1.0.0",
+  "description": "Catch Nia! - iOS mobile build (Capacitor wrapper around the original HTML game)",
+  "private": true,
+  "scripts": {
+    "sync": "cap sync ios",
+    "ios": "cap open ios",
+    "build": "cap sync ios && cap open ios",
+    "add:ios": "cap add ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}

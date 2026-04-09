@@ -198,7 +198,7 @@ canvas#minimap{width:160px;height:160px;border:2px solid rgba(255,255,255,0.5);b
 <p><b>WASD</b> - Move &nbsp; <b>SHIFT</b> - Sprint &nbsp; <b>SPACE</b> - Jump &nbsp; <b>E</b> - Interact/Catch</p>
 <p><b>F</b> - Pick up weapon &nbsp; <b>B</b> - Open Shop &nbsp; <b>Left Click</b> - Shoot</p>
 <p>⚠️ Watch out for Giant Nias — they deal damage! Parkour around them!</p>
-<p class="start-btn">Click to Start</p>
+<p class="start-btn" id="start-btn-text">Click to Start</p>
 </div>
 </div>
 
@@ -4371,22 +4371,47 @@ html,body{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;ov
   else window.addEventListener('load',()=>setTimeout(autoSkipLobby,200));
 
   // ============ AUTO-START: tap blocker to start the game ============
-  // The original code calls renderer.domElement.requestPointerLock() in click handler;
-  // we have already overridden that, so a single tap on the blocker now starts the game.
-  // Add a touchstart handler too in case click is finicky on iOS.
-  function tryStart(){
+  // Replace "Click to Start" with "Tap to Start"
+  // Wire a direct touch handler on the blocker that bypasses the click event
+  // (programmatic .click() on iOS Safari doesn't reliably trigger addEventListener handlers).
+  function setupBlockerTap(){
     const blocker=document.getElementById('blocker');
-    if(blocker && blocker.style.display!=='none'){
-      blocker.click();
+    if(!blocker){ setTimeout(setupBlockerTap,100); return; }
+    // Update all "click" wording on the start screen
+    const startTxt=document.getElementById('start-btn-text');
+    if(startTxt) startTxt.textContent='Tap to Start';
+    // Replace any other "click" wording inside the blocker that would confuse mobile users
+    blocker.querySelectorAll('p').forEach(p=>{
+      if(p.innerHTML && /Left Click/i.test(p.innerHTML)){
+        p.innerHTML = p.innerHTML.replace(/Left Click/gi,'Tap');
+      }
+    });
+    // Replace controls-help line with mobile-friendly version
+    const helpLines = blocker.querySelectorAll('p');
+    helpLines.forEach(p=>{
+      const t=p.textContent||'';
+      if(t.includes('WASD') || t.includes('SHIFT')){
+        p.innerHTML='<b>Joystick</b> Move &nbsp; <b>SPRINT</b> Run &nbsp; <b>JUMP</b> Jump &nbsp; <b>CATCH</b> Interact';
+      }
+      if(t.includes('Pick up weapon')){
+        p.innerHTML='<b>PICK</b> Pickup weapon &nbsp; <b>SHOP</b> Open shop &nbsp; <b>SHOOT</b> Fire';
+      }
+    });
+    // Direct touch handler — calls the override directly, no .click() indirection
+    function startGame(e){
+      if(e){ e.preventDefault(); e.stopPropagation(); }
+      // Call the requestPointerLock override (defined above) which dispatches pointerlockchange
+      const c = document.querySelector('canvas#gameCanvas') || document.querySelector('canvas');
+      if(c && c.requestPointerLock) c.requestPointerLock();
+      else document.dispatchEvent(new Event('pointerlockchange'));
     }
+    blocker.addEventListener('touchstart',startGame,{passive:false});
+    blocker.addEventListener('touchend',startGame,{passive:false});
+    // Also click for desktop testing
+    blocker.addEventListener('click',startGame);
   }
-  document.addEventListener('touchstart',function once(e){
-    // only count taps on the blocker, not the buttons
-    const tgt=e.target;
-    if(tgt && (tgt.id==='blocker' || (tgt.closest && tgt.closest('#blocker')))){
-      tryStart();
-    }
-  },{passive:true});
+  if(document.readyState==='complete') setupBlockerTap();
+  else window.addEventListener('load',setupBlockerTap);
 
   // ============ Resize fix for iOS landscape ============
   function fixSize(){

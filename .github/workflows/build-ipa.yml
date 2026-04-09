@@ -40,6 +40,55 @@ jobs:
       - name: Add iOS platform
         run: npx cap add ios
 
+      - name: Generate app icon from source image
+        run: |
+          # Source is 200x200 JPG. Use sips to:
+          #  1. Convert JPG → PNG
+          #  2. Upscale to 1024x1024 (Apple's required source size)
+          #  3. Flatten any alpha (iOS app icons cannot have transparency)
+          mkdir -p resources-generated
+          SRC="resources/icon-source.jpg"
+          OUT="resources-generated/icon.png"
+          sips -s format png "$SRC" --out "$OUT"
+          sips -z 1024 1024 "$OUT"
+          # Strip alpha by re-encoding through sips with white background
+          sips -s format png -s formatOptions normal "$OUT" --out "$OUT"
+
+          # Place into the iOS asset catalog at every required size
+          ICONSET="ios/App/App/Assets.xcassets/AppIcon.appiconset"
+          mkdir -p "$ICONSET"
+          # Copy generated PNGs at each size required by Contents.json
+          for size in 20 29 40 58 60 76 80 87 120 152 167 180 1024; do
+            sips -z $size $size "$OUT" --out "$ICONSET/AppIcon-$size.png"
+          done
+          # Some Contents.json files reference @2x/@3x — write a fresh Contents.json
+          cat > "$ICONSET/Contents.json" <<'EOF'
+          {
+            "images" : [
+              { "size" : "20x20", "idiom" : "iphone", "filename" : "AppIcon-40.png", "scale" : "2x" },
+              { "size" : "20x20", "idiom" : "iphone", "filename" : "AppIcon-60.png", "scale" : "3x" },
+              { "size" : "29x29", "idiom" : "iphone", "filename" : "AppIcon-58.png", "scale" : "2x" },
+              { "size" : "29x29", "idiom" : "iphone", "filename" : "AppIcon-87.png", "scale" : "3x" },
+              { "size" : "40x40", "idiom" : "iphone", "filename" : "AppIcon-80.png", "scale" : "2x" },
+              { "size" : "40x40", "idiom" : "iphone", "filename" : "AppIcon-120.png", "scale" : "3x" },
+              { "size" : "60x60", "idiom" : "iphone", "filename" : "AppIcon-120.png", "scale" : "2x" },
+              { "size" : "60x60", "idiom" : "iphone", "filename" : "AppIcon-180.png", "scale" : "3x" },
+              { "size" : "20x20", "idiom" : "ipad", "filename" : "AppIcon-20.png", "scale" : "1x" },
+              { "size" : "20x20", "idiom" : "ipad", "filename" : "AppIcon-40.png", "scale" : "2x" },
+              { "size" : "29x29", "idiom" : "ipad", "filename" : "AppIcon-29.png", "scale" : "1x" },
+              { "size" : "29x29", "idiom" : "ipad", "filename" : "AppIcon-58.png", "scale" : "2x" },
+              { "size" : "40x40", "idiom" : "ipad", "filename" : "AppIcon-40.png", "scale" : "1x" },
+              { "size" : "40x40", "idiom" : "ipad", "filename" : "AppIcon-80.png", "scale" : "2x" },
+              { "size" : "76x76", "idiom" : "ipad", "filename" : "AppIcon-76.png", "scale" : "1x" },
+              { "size" : "76x76", "idiom" : "ipad", "filename" : "AppIcon-152.png", "scale" : "2x" },
+              { "size" : "83.5x83.5", "idiom" : "ipad", "filename" : "AppIcon-167.png", "scale" : "2x" },
+              { "size" : "1024x1024", "idiom" : "ios-marketing", "filename" : "AppIcon-1024.png", "scale" : "1x" }
+            ],
+            "info" : { "version" : 1, "author" : "xcode" }
+          }
+          EOF
+          ls -la "$ICONSET"
+
       - name: Patch Info.plist for landscape
         run: |
           PLIST="ios/App/App/Info.plist"
